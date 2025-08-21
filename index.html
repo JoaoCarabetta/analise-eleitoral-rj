@@ -517,11 +517,11 @@
         function updateConnectionStatus(connected) {
             const statusEl = document.getElementById('connectionStatus');
             if (connected) {
-                statusEl.className = 'connection-status status-connected';
-                statusEl.innerHTML = '🟢 Conectado ao Supabase';
+                statusEl.style.display = 'none';
             } else {
                 statusEl.className = 'connection-status status-disconnected';
                 statusEl.innerHTML = '🔴 Desconectado do Supabase';
+                statusEl.style.display = 'block';
             }
         }
 
