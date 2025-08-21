@@ -17,6 +17,65 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
         }
+
+        .login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+
+        .login-box {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .login-box h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .login-box input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        .login-box button {
+            width: 100%;
+            padding: 12px;
+            background: #e53e3e;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .login-box button:hover {
+            background: #c53030;
+        }
+
+        .error-message {
+            color: #e53e3e;
+            margin-top: 10px;
+            font-size: 14px;
+        }
         
         .app-container {
             display: flex;
@@ -346,6 +405,17 @@
     </style>
 </head>
 <body>
+    <!-- Login Overlay -->
+    <div id="loginOverlay" class="login-overlay">
+        <div class="login-box">
+            <h2>🔐 Acesso Restrito</h2>
+            <p>Digite a senha para acessar o sistema</p>
+            <input type="password" id="passwordInput" placeholder="Senha" />
+            <button onclick="checkPassword()">Entrar</button>
+            <div id="errorMessage" class="error-message" style="display: none;"></div>
+        </div>
+    </div>
+
     <div class="app-container">
         <div class="sidebar">
             <div class="header">
@@ -435,6 +505,47 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script>
+        // Password configuration
+        const CORRECT_PASSWORD = 'admin123'; // Change this to your desired password
+        
+        // Check if user is already authenticated
+        function checkAuth() {
+            const isAuthenticated = localStorage.getItem('authenticated') === 'true';
+            if (isAuthenticated) {
+                hideLogin();
+            } else {
+                showLogin();
+            }
+        }
+        
+        // Show login overlay
+        function showLogin() {
+            document.getElementById('loginOverlay').style.display = 'flex';
+        }
+        
+        // Hide login overlay
+        function hideLogin() {
+            document.getElementById('loginOverlay').style.display = 'none';
+        }
+        
+        // Check password
+        function checkPassword() {
+            const password = document.getElementById('passwordInput').value;
+            const errorDiv = document.getElementById('errorMessage');
+            
+            if (password === CORRECT_PASSWORD) {
+                localStorage.setItem('authenticated', 'true');
+                hideLogin();
+                errorDiv.style.display = 'none';
+            } else {
+                errorDiv.innerHTML = 'Senha incorreta. Tente novamente.';
+                errorDiv.style.display = 'block';
+                document.getElementById('passwordInput').value = '';
+                document.getElementById('passwordInput').focus();
+            }
+        }
+        
+
         // Estado da aplicação
         let supabase = null;
         let map;
@@ -942,6 +1053,22 @@
                 showError(`Falha na conexão: ${error.message}`);
             }
         }
+
+        // Initialize app with authentication check
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuth();
+            
+            // Initialize password input event listener
+            const passwordInput = document.getElementById('passwordInput');
+            if (passwordInput) {
+                passwordInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        checkPassword();
+                    }
+                });
+                passwordInput.focus();
+            }
+        });
     </script>
 </body>
 </html>
