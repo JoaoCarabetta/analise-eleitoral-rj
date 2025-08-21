@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa Interativo - Eleições RJ (Supabase)</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .app-container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        .sidebar {
+            width: 350px;
+            background: white;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #e53e3e 0%, #fc8181 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 1.8em;
+            margin-bottom: 5px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 0.9em;
+        }
+        
+        .connection-status {
+            padding: 10px 20px;
+            font-size: 0.85em;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .status-connected {
+            background: #d4edda;
+            color: #155724;
+            border-bottom: 2px solid #c3e6cb;
+        }
+        
+        .status-disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border-bottom: 2px solid #f5c6cb;
+        }
+        
+        .controls {
+            padding: 20px;
+        }
+        
+        .control-group {
+            margin-bottom: 25px;
+        }
+        
+        .control-group h3 {
+            color: #333;
+            margin-bottom: 12px;
+            font-size: 1.1em;
+            border-bottom: 2px solid #e53e3e;
+            padding-bottom: 5px;
+        }
+        
+        .year-selector {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .year-btn {
+            padding: 8px 16px;
+            border: 2px solid #e53e3e;
+            background: white;
+            color: #e53e3e;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+        
+        .year-btn.active {
+            background: #e53e3e;
+            color: white;
+        }
+        
+        .year-btn:hover:not(.active) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .year-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        
+        .candidate-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        
+        .candidate-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .candidate-item:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+        
+        .candidate-item.selected {
+            background: linear-gradient(135deg, #e53e3e 0%, #fc8181 100%);
+            color: white;
+        }
+        
+        .candidate-checkbox {
+            margin-right: 12px;
+            transform: scale(1.2);
+        }
+        
+        .candidate-info {
+            flex: 1;
+        }
+        
+        .candidate-name {
+            font-weight: bold;
+            font-size: 0.95em;
+        }
+        
+        .candidate-details {
+            font-size: 0.8em;
+            opacity: 0.8;
+            margin-top: 2px;
+        }
+        
+        .stats-panel {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 5px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .stat-label {
+            font-weight: bold;
+            color: #666;
+        }
+        
+        .stat-value {
+            color: #e53e3e;
+            font-weight: bold;
+        }
+        
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 1000;
+            max-width: 250px;
+        }
+        
+        .legend h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 6px 0;
+            font-size: 0.85em;
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 8px;
+            border: 2px solid #333;
+        }
+        
+        .popup-content {
+            text-align: center;
+            padding: 10px;
+            min-width: 200px;
+        }
+        
+        .popup-content h4 {
+            margin: 0 0 10px 0;
+            color: #e53e3e;
+        }
+        
+        .popup-votos {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #333;
+            margin: 5px 0;
+        }
+        
+        .popup-details {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 8px;
+        }
+        
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            flex-direction: column;
+        }
+        
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #e53e3e;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 20px;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .error-message h4 {
+            margin: 0 0 8px 0;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+        
+        .empty-state h3 {
+            margin-bottom: 10px;
+            color: #999;
+        }
+        
+        .config-section {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .config-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+        }
+        
+        .config-btn {
+            background: #e53e3e;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
+        
+        .config-btn:hover {
+            background: #c82333;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="header">
+                <h1>🗳️ Eleições RJ</h1>
+                <p>Mapa Interativo via Supabase</p>
+            </div>
+            
+            <div id="connectionStatus" class="connection-status status-disconnected">
+                🔴 Desconectado do Supabase
+            </div>
+            
+            <!-- Configuração do Supabase -->
+            <div class="config-section hidden" id="configSection">
+                <h4>⚙️ Configuração Supabase</h4>
+                <input type="text" id="supabaseUrl" class="config-input" placeholder="URL do Supabase" />
+                <input type="text" id="supabaseKey" class="config-input" placeholder="Anon Key" />
+                <button class="config-btn" onclick="connectSupabase()">Conectar</button>
+            </div>
+            
+            <div class="controls" id="mainControls">
+                <div class="control-group">
+                    <h3>📅 Selecionar Ano</h3>
+                    <div class="year-selector" id="yearSelector">
+                        <!-- Anos serão carregados dinamicamente -->
+                    </div>
+                </div>
+                
+                
+                <div class="control-group">
+                    <h3>👥 Candidatas/os Disponíveis</h3>
+                    <div class="candidate-list" id="candidateList">
+                        <!-- Candidatas serão carregadas dinamicamente -->
+                    </div>
+                </div>
+                
+                <div class="stats-panel" id="statsPanel">
+                    <h4>📊 Estatísticas</h4>
+                    <div class="stat-item">
+                        <span class="stat-label">Candidatas selecionadas:</span>
+                        <span class="stat-value" id="selectedCount">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Zonas eleitorais:</span>
+                        <span class="stat-value" id="totalZones">0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="errorContainer"></div>
+        </div>
+        
+        <div class="map-container">
+            <div id="map"></div>
+            
+            <div class="legend">
+                <h4>📍 Legenda</h4>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #cc0000;"></div>
+                    <span>Muito alta (2500+ votos)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ff4444;"></div>
+                    <span>Alta (1500-2499)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ff8844;"></div>
+                    <span>Média-alta (800-1499)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ffaa44;"></div>
+                    <span>Média (300-799)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #44ff44;"></div>
+                    <span>Baixa (menos de 300)</span>
+                </div>
+            </div>
+            
+            <div class="loading-overlay hidden" id="loadingOverlay">
+                <div class="loading-spinner"></div>
+                <h3>Carregando dados eleitorais...</h3>
+                <p>Conectando com Supabase</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script>
+        // Estado da aplicação
+        let supabase = null;
+        let map;
+        let markersLayer;
+        let anoAtual = 2018;
+        let candidatasSelecionadas = new Set();
+        let candidatosCache = new Map();
+        let dadosMapaCache = new Map();
+
+        // Inicializar o mapa
+        function initMap() {
+            map = L.map('map').setView([-22.9068, -43.1729], 10);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap | Dados: Base dos Dados/TSE via Supabase',
+                maxZoom: 18
+            }).addTo(map);
+            
+            markersLayer = L.layerGroup().addTo(map);
+        }
+
+        // Conectar ao Supabase
+        async function connectSupabase() {
+            console.log('🔌 Iniciando conexão com Supabase...');
+            
+            const url = document.getElementById('supabaseUrl').value.trim();
+            const key = document.getElementById('supabaseKey').value.trim();
+            
+            console.log('📋 URL:', url);
+            console.log('🔑 Key presente:', key ? 'Sim' : 'Não');
+            console.log('📚 Supabase library:', typeof window.supabase);
+            
+            if (!url || !key) {
+                console.error('❌ URL ou chave não fornecidos');
+                showError('Por favor, forneça a URL e a chave do Supabase');
+                return;
+            }
+            
+            try {
+                showLoading('Conectando ao Supabase...');
+                console.log('🚀 Criando cliente Supabase...');
+                
+                // Inicializar cliente Supabase
+                supabase = window.supabase.createClient(url, key);
+                console.log('✅ Cliente criado:', supabase);
+                
+                // Testar conexão
+                console.log('🔍 Testando conexão...');
+                const { data, error } = await supabase.from('candidatos').select('count').limit(1);
+                
+                console.log('📊 Resposta:', { data, error });
+                
+                if (error) {
+                    console.error('❌ Erro na consulta:', error);
+                    throw new Error(`Erro de conexão: ${error.message}`);
+                }
+                
+                // Sucesso!
+                console.log('🎉 Conexão estabelecida com sucesso!');
+                updateConnectionStatus(true);
+                
+                // Carregar dados iniciais
+                console.log('📅 Carregando anos disponíveis...');
+                await loadAvailableYears();
+                console.log('👥 Carregando candidatos...');
+                await loadCandidates();
+                
+                hideLoading();
+                clearError();
+                
+            } catch (error) {
+                console.error('💥 Erro na conexão:', error);
+                hideLoading();
+                updateConnectionStatus(false);
+                showError(`Falha na conexão: ${error.message}`);
+            }
+        }
+
+        // Atualizar status de conexão
+        function updateConnectionStatus(connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            if (connected) {
+                statusEl.className = 'connection-status status-connected';
+                statusEl.innerHTML = '🟢 Conectado ao Supabase';
+            } else {
+                statusEl.className = 'connection-status status-disconnected';
+                statusEl.innerHTML = '🔴 Desconectado do Supabase';
+            }
+        }
+
+        // Carregar anos disponíveis
+        async function loadAvailableYears() {
+            try {
+                const { data, error } = await supabase
+                    .from('candidatos')
+                    .select('ano')
+                    .eq('ativo', true);
+                
+                if (error) throw error;
+                
+                const anos = [...new Set(data.map(item => item.ano))].sort();
+                renderYearSelector(anos);
+                
+            } catch (error) {
+                showError(`Erro ao carregar anos: ${error.message}`);
+            }
+        }
+
+        // Renderizar seletor de anos
+        function renderYearSelector(anos) {
+            const yearSelector = document.getElementById('yearSelector');
+            yearSelector.innerHTML = '';
+            
+            anos.forEach(ano => {
+                const btn = document.createElement('button');
+                btn.className = 'year-btn';
+                btn.dataset.year = ano;
+                btn.textContent = ano;
+                
+                if (ano === anoAtual) {
+                    btn.classList.add('active');
+                }
+                
+                btn.addEventListener('click', () => selectYear(ano));
+                yearSelector.appendChild(btn);
+            });
+        }
+
+        // Selecionar ano
+        async function selectYear(ano) {
+            if (ano === anoAtual) return;
+            
+            anoAtual = ano;
+            candidatasSelecionadas.clear();
+            
+            // Atualizar UI
+            document.querySelectorAll('.year-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.year) === ano);
+            });
+            
+            await loadCandidates();
+            updateMap();
+            updateStats();
+        }
+
+        // Carregar candidatos
+        async function loadCandidates() {
+            try {
+                showLoading('Carregando candidatos...');
+                
+                // Verificar cache
+                if (candidatosCache.has(anoAtual)) {
+                    renderCandidates(candidatosCache.get(anoAtual));
+                    hideLoading();
+                    return;
+                }
+                
+                const { data, error } = await supabase
+                    .from('vw_stats_candidatos')
+                    .select('*')
+                    .eq('ano', anoAtual)
+                    .order('nome_urna');
+                
+                if (error) throw error;
+                
+                candidatosCache.set(anoAtual, data);
+                renderCandidates(data);
+                hideLoading();
+                
+            } catch (error) {
+                hideLoading();
+                showError(`Erro ao carregar candidatos: ${error.message}`);
+            }
+        }
+
+        // Renderizar lista de candidatos
+        function renderCandidates(candidatos) {
+            const candidateList = document.getElementById('candidateList');
+            candidateList.innerHTML = '';
+            
+            if (!candidatos || candidatos.length === 0) {
+                candidateList.innerHTML = `
+                    <div class="empty-state">
+                        <h3>📭 Nenhum candidato encontrado</h3>
+                        <p>Não há dados para o ano ${anoAtual}</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            candidatos.forEach(candidato => {
+                const item = document.createElement('div');
+                item.className = 'candidate-item';
+                item.innerHTML = `
+                    <input type="checkbox" class="candidate-checkbox" 
+                           data-id="${candidato.id}">
+                    <div class="candidate-info">
+                        <div class="candidate-name">${candidato.nome_urna}</div>
+                        <div class="candidate-details">
+                            ${candidato.cargo} (${candidato.partido})
+                            <br>${candidato.resultado || 'N/A'}
+                            <br>${candidato.total_zonas || 0} zonas eleitorais
+                        </div>
+                    </div>
+                `;
+                
+                item.addEventListener('click', (e) => {
+                    if (e.target.type !== 'checkbox') {
+                        const checkbox = item.querySelector('.candidate-checkbox');
+                        checkbox.checked = !checkbox.checked;
+                        toggleCandidate(candidato, checkbox.checked);
+                    }
+                });
+                
+                const checkbox = item.querySelector('.candidate-checkbox');
+                checkbox.addEventListener('change', (e) => {
+                    toggleCandidate(candidato, e.target.checked);
+                });
+                
+                candidateList.appendChild(item);
+            });
+        }
+
+        // Alternar seleção de candidato
+        async function toggleCandidate(candidato, selected) {
+            const item = document.querySelector(`input[data-id="${candidato.id}"]`).closest('.candidate-item');
+            
+            if (selected) {
+                candidatasSelecionadas.add(candidato);
+                item.classList.add('selected');
+                
+                // Carregar dados do mapa para este candidato
+                await loadMapData(candidato.id);
+            } else {
+                candidatasSelecionadas.delete(candidato);
+                item.classList.remove('selected');
+            }
+            
+            updateMap();
+            updateStats();
+        }
+
+        // Carregar dados do mapa
+        async function loadMapData(candidatoId) {
+            try {
+                // Verificar cache
+                if (dadosMapaCache.has(candidatoId)) {
+                    const cachedData = dadosMapaCache.get(candidatoId);
+                    console.log(`📋 Dados do cache para candidato ${candidatoId}: ${cachedData.length} registros`);
+                    return cachedData;
+                }
+                
+                console.log(`🔍 Buscando dados para candidato ${candidatoId}...`);
+                const { data, error } = await supabase
+                    .from('vw_dados_mapa')
+                    .select('*')
+                    .eq('candidato_id', candidatoId);
+                
+                if (error) throw error;
+                
+                console.log(`📊 Dados recebidos para candidato ${candidatoId}: ${data ? data.length : 0} registros`);
+                dadosMapaCache.set(candidatoId, data || []);
+                return data || [];
+                
+            } catch (error) {
+                console.error(`❌ Erro ao carregar dados para candidato ${candidatoId}:`, error);
+                showError(`Erro ao carregar dados do mapa: ${error.message}`);
+                return [];
+            }
+        }
+
+        // Atualizar mapa
+        async function updateMap() {
+            markersLayer.clearLayers();
+            
+            if (candidatasSelecionadas.size === 0) return;
+            
+            // Visualização de marcadores
+            if (candidatasSelecionadas.size > 1) {
+                await updateMapWithSummedVotes();
+            } else {
+                await updateMapSingleCandidate();
+            }
+        }
+
+        // Atualizar mapa para candidato único
+        async function updateMapSingleCandidate() {
+            const candidato = Array.from(candidatasSelecionadas)[0];
+            const dadosMapa = await loadMapData(candidato.id);
+            
+            dadosMapa.forEach(zona => {
+                const color = getColorByVotes(zona.votos);
+                const size = getSizeByVotes(zona.votos);
+                
+                const marker = L.circleMarker([zona.latitude, zona.longitude], {
+                    radius: size,
+                    fillColor: color,
+                    color: candidato.cor_mapa || '#333',
+                    weight: 3,
+                    opacity: 1,
+                    fillOpacity: 0.7
+                });
+                
+                const popupContent = `
+                    <div class="popup-content">
+                        <h4>${zona.nome_urna}</h4>
+                        <div>Zona ${zona.zona} - ${zona.nome_municipio}</div>
+                        <div class="popup-votos">${zona.votos.toLocaleString('pt-BR')} votos</div>
+                        <div class="popup-details">
+                            ${zona.cargo} (${zona.partido} - ${zona.numero})<br>
+                            Ano: ${zona.ano}<br>
+                            ${zona.percentual_zona ? `${zona.percentual_zona}% dos votos da zona` : ''}
+                        </div>
+                    </div>
+                `;
+                
+                marker.bindPopup(popupContent);
+                marker.addTo(markersLayer);
+            });
+        }
+
+        // Atualizar mapa com votos somados (múltiplos candidatos)
+        async function updateMapWithSummedVotes() {
+            const votosPorZona = new Map();
+            const candidatosList = Array.from(candidatasSelecionadas);
+            
+            // Carregar dados de todos os candidatos selecionados
+            for (const candidato of candidatosList) {
+                const dadosMapa = await loadMapData(candidato.id);
+                
+                dadosMapa.forEach(zona => {
+                    const chaveZona = `${zona.zona}-${zona.id_municipio}-${zona.ano}`;
+                    
+                    if (!votosPorZona.has(chaveZona)) {
+                        votosPorZona.set(chaveZona, {
+                            ...zona,
+                            votos: 0,
+                            candidatos: []
+                        });
+                    }
+                    
+                    const zonaData = votosPorZona.get(chaveZona);
+                    zonaData.votos += zona.votos;
+                    zonaData.candidatos.push({
+                        nome: zona.nome_urna,
+                        votos: zona.votos,
+                        partido: zona.partido
+                    });
+                });
+            }
+            
+            // Criar marcadores com votos somados
+            votosPorZona.forEach(zona => {
+                const color = getColorByVotes(zona.votos);
+                const size = getSizeByVotes(zona.votos);
+                
+                const marker = L.circleMarker([zona.latitude, zona.longitude], {
+                    radius: size,
+                    fillColor: color,
+                    color: '#333',
+                    weight: 3,
+                    opacity: 1,
+                    fillOpacity: 0.7
+                });
+                
+                const candidatosDetalhes = zona.candidatos
+                    .map(c => `${c.nome}: ${c.votos.toLocaleString('pt-BR')} votos (${c.partido})`)
+                    .join('<br>');
+                
+                const popupContent = `
+                    <div class="popup-content">
+                        <h4>Zona ${zona.zona} - ${zona.nome_municipio}</h4>
+                        <div class="popup-votos">Total: ${zona.votos.toLocaleString('pt-BR')} votos</div>
+                        <div class="popup-details">
+                            <strong>Candidatos selecionados:</strong><br>
+                            ${candidatosDetalhes}<br>
+                            Ano: ${zona.ano}
+                        </div>
+                    </div>
+                `;
+                
+                marker.bindPopup(popupContent);
+                marker.addTo(markersLayer);
+            });
+        }
+
+
+        // Funções auxiliares para cores e tamanhos
+        function getColorByVotes(votos) {
+            if (votos >= 2500) return '#cc0000';  // Vermelho escuro para 2500+
+            if (votos >= 1500) return '#ff4444';  // Vermelho para 1500-2499
+            if (votos >= 800) return '#ff8844';   // Laranja para 800-1499
+            if (votos >= 300) return '#ffaa44';   // Amarelo para 300-799
+            return '#44ff44';                     // Verde para menos de 300
+        }
+
+        function getSizeByVotes(votos) {
+            if (votos >= 2500) return 25;  // Maior para 2500+
+            if (votos >= 1500) return 20;  // Grande para 1500-2499
+            if (votos >= 800) return 15;   // Médio-grande para 800-1499
+            if (votos >= 300) return 12;   // Médio para 300-799
+            return 8;                      // Pequeno para menos de 300
+        }
+
+        // Atualizar estatísticas
+        function updateStats() {
+            const selectedCount = candidatasSelecionadas.size;
+            const totalZones = Array.from(candidatasSelecionadas).reduce((sum, c) => sum + (c.total_zonas || 0), 0);
+            
+            document.getElementById('selectedCount').textContent = selectedCount;
+            document.getElementById('totalZones').textContent = totalZones;
+        }
+
+        // Utilitários de UI
+        function showLoading(message) {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.querySelector('h3').textContent = message;
+            overlay.classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+        }
+
+        function showError(message) {
+            const container = document.getElementById('errorContainer');
+            container.innerHTML = `
+                <div class="error-message">
+                    <h4>❌ Erro</h4>
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+
+        function clearError() {
+            document.getElementById('errorContainer').innerHTML = '';
+        }
+
+        // Inicializar aplicação
+        document.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            
+            // Pré-configurar com as credenciais fornecidas
+            const supabaseUrl = 'https://jzkbasypexxqmohqtzuh.supabase.co';
+            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6a2Jhc3lwZXh4cW1vaHF0enVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU3Mjk0NjMsImV4cCI6MjA3MTMwNTQ2M30.dZFvFtE6Fr767-mlnWnNl2gu0T4mJKrBoZ0ZZLD3xU4';
+            
+            document.getElementById('supabaseUrl').value = supabaseUrl;
+            document.getElementById('supabaseKey').value = supabaseKey;
+            
+            // Aguardar carregamento das bibliotecas e auto-conectar
+            function checkLibrariesAndConnect() {
+                console.log('🔍 Verificando bibliotecas...');
+                console.log('📚 Supabase:', typeof window.supabase);
+                console.log('🗺️ Leaflet:', typeof L);
+                
+                if (typeof window.supabase !== 'undefined' && typeof L !== 'undefined') {
+                    console.log('✅ Bibliotecas carregadas, iniciando conexão...');
+                    connectSupabase();
+                } else {
+                    console.log('⏳ Aguardando bibliotecas...');
+                    setTimeout(checkLibrariesAndConnect, 500);
+                }
+            }
+            
+            checkLibrariesAndConnect();
+        });
+
+        // Salvar configurações no localStorage quando conectar
+        async function connectSupabase() {
+            const url = document.getElementById('supabaseUrl').value.trim();
+            const key = document.getElementById('supabaseKey').value.trim();
+            
+            if (!url || !key) {
+                showError('Por favor, forneça a URL e a chave do Supabase');
+                return;
+            }
+            
+            try {
+                showLoading('Conectando ao Supabase...');
+                
+                supabase = window.supabase.createClient(url, key);
+                
+                // Testar conexão
+                const { data, error } = await supabase.from('candidatos').select('count').limit(1);
+                
+                if (error) {
+                    throw new Error(`Erro de conexão: ${error.message}`);
+                }
+                
+                // Salvar configurações
+                localStorage.setItem('supabase_url', url);
+                localStorage.setItem('supabase_key', key);
+                
+                updateConnectionStatus(true);
+                
+                await loadAvailableYears();
+                await loadCandidates();
+                
+                hideLoading();
+                clearError();
+                
+            } catch (error) {
+                hideLoading();
+                updateConnectionStatus(false);
+                showError(`Falha na conexão: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>

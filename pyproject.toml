@@ -1,0 +1,13 @@
+[project]
+name = "analise-eleitoral"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "db-dtypes>=1.4.3",
+    "google-cloud-bigquery>=3.36.0",
+    "pandas>=2.3.1",
+    "python-dotenv>=1.1.1",
+    "supabase>=2.18.1",
+]
